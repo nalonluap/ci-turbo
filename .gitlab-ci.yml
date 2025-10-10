@@ -1,0 +1,55 @@
+# example.gitlab-ci.yml
+
+stages:
+  - setup
+  - test
+  - build
+
+# Глобальный кэш, который будет унаследован некоторыми задачами
+cache:
+  key: "global-key"
+  paths:
+    - .cache/
+
+# 1. ПРОБЛЕМА: Установка зависимостей без какого-либо кэша.
+# Ожидание: CachingRule должен сработать.
+install-deps:
+  stage: setup
+  script:
+    - echo "Installing Node.js dependencies..."
+    - npm install
+  cache:
+    key: "node_modules"
+    paths:
+      - node_modules/
+
+# 2. ПРОБЛЕМА: Длительная задача (тесты) без распараллеливания.
+# Ожидание: ParallelismRule должен сработать.
+unit-tests:
+  stage: test
+  parallel: 5
+  script:
+    - go test ./... -v --cover
+
+# 3. ПРОБЛЕМА: Неэффективный кэш.
+# Задача выполняет `pip install`, но кэширует неправильную директорию.
+# Ожидание: CachingRule должен сработать и предложить правильный путь.
+lint-code:
+  stage: test
+  parallel: 5
+  cache:
+    key: "lint-cache"
+    paths:
+      - .venv/
+  script:
+    - pip install -r requirements.txt
+    - flake8 .
+
+# 4. ВСЕ В ПОРЯДКЕ: Эта задача настроена правильно.
+# Ожидание: Никаких проблем найдено не будет.
+build-image:
+  stage: build
+  # У этой задачи есть parallel, поэтому ParallelismRule не сработает
+  parallel: 3
+  script:
+    - echo "Building image..."

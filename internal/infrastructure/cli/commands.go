@@ -31,18 +31,15 @@ func createAnalyzeCommand(analyzer *service.AnalysisService, repo service.Pipeli
 		Use:   "analyze",
 		Short: "Анализирует CI/CD конфигурационный файл.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// 1. Получаем доменную модель через репозиторий (адаптер).
 			pipeline, err := repo.Get(filePath)
-
 			if err != nil {
 				return fmt.Errorf("не удалось получить конфигурацию пайплайна: %w", err)
 			}
 
-			// 2. Вызываем сервис анализа с этой моделью.
 			findings := analyzer.Analyze(pipeline)
 
-			// 3. Отображаем результат.
-			presentFindings(findings)
+			// ВЫЗЫВАЕМ НАШ НОВЫЙ PRESENTER
+			Render(findings)
 
 			return nil
 		},

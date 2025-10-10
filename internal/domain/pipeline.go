@@ -7,10 +7,11 @@ type Pipeline struct {
 
 // Job - это универсальное представление задачи в пайплайне.
 type Job struct {
-	Name   string
-	Stage  string
-	Script []string
-	Cache  CacheConfig
+	Name     string
+	Stage    string
+	Script   []string
+	Cache    CacheConfig
+	Parallel int
 }
 
 // CacheConfig - универсальное представление настроек кэша.

@@ -22,9 +22,10 @@ type gitlabCIConfig struct {
 
 // gitlabJob представляет одну задачу в .gitlab-ci.yml.
 type gitlabJob struct {
-	Stage  string       `yaml:"stage"`
-	Script interface{}  `yaml:"script"` // `script` может быть строкой или списком строк
-	Cache  *gitlabCache `yaml:"cache"`
+	Stage    string       `yaml:"stage"`
+	Script   interface{}  `yaml:"script"` // `script` может быть строкой или списком строк
+	Cache    *gitlabCache `yaml:"cache"`
+	Parallel int          `yaml:"parallel"`
 }
 
 // gitlabCache представляет блок `cache` в .gitlab-ci.yml.
@@ -76,9 +77,10 @@ func mapToDomain(config gitlabCIConfig) *domain.Pipeline {
 
 		// Создаем доменную модель задачи
 		domainJob := domain.Job{
-			Name:   jobName,
-			Stage:  job.Stage,
-			Script: normalizeScript(job.Script),
+			Name:     jobName,
+			Stage:    job.Stage,
+			Script:   normalizeScript(job.Script),
+			Parallel: job.Parallel,
 		}
 
 		// Определяем настройки кэша: приоритет у локального кэша задачи,
