@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  # 1. API Сервер
+  observer:
+    build:
+      context: .
+      dockerfile: ./services/observer/Dockerfile
+    ports:
+      - "8080:8080"
+    env_file: .env # Подключаем переменные окружения
+    depends_on:
+      nats: # <-- Указываем зависимость от nats
+        condition: service_healthy # <-- Говорим ждать, пока healthcheck не пройдет
+      clickhouse:
+        condition: service_healthy # <-- То же самое для ClickHouse
+    networks:
+      - ci-turbo-net
+
+  # 2. Воркер
+  ingester:
+    build:
+      context: .
+      dockerfile: ./services/ingester/Dockerfile
+    env_file: .env
+    depends_on:
+      - nats
+      - clickhouse
+    networks:
+      - ci-turbo-net
+
+  # 3. Брокер сообщений
+  nats:
+    image: nats:2.9-alpine
+    ports:
+      - "4222:4222"
+      - "8222:8222" # Для веб-интерфейса мониторинга NATS
+    command: "-js"  # Включаем режим JetStream
+    networks:
+      - ci-turbo-net
+    healthcheck:
+      test: [ "CMD-SHELL", "nc -z localhost 4222 || exit 1" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  # 4. База данных
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    environment:
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=qwerty123
+    volumes:
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql # Скрипт для создания таблицы
+    networks:
+      - ci-turbo-net
+    healthcheck:
+      test: [ "CMD", "clickhouse-client", "-u", "default", "--password", "qwerty123", "-q", "SELECT 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    ulimits:
+      nproc: 65535
+      nofile: { soft: 262144, hard: 262144 }
+
+networks:
+  ci-turbo-net:
+    driver: bridge

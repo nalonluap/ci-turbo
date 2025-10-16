@@ -27,7 +27,11 @@ type NATSConfig struct {
 
 // ClickHouseConfig содержит настройки для подключения к базе данных ClickHouse.
 type ClickHouseConfig struct {
-	DSN string `env:"CLICKHOUSE_DSN" envDefault:"clickhouse://localhost:9000/default"`
+	Host     string `env:"CLICKHOUSE_HOST" envDefault:"clickhouse"`
+	Port     string `env:"CLICKHOUSE_PORT" envDefault:"9000"`
+	Database string `env:"CLICKHOUSE_DATABASE" envDefault:"default"`
+	User     string `env:"CLICKHOUSE_USER" envDefault:"default"`
+	Password string `env:"CLICKHOUSE_PASSWORD"` // Пароль может быть пустым
 }
 
 // Load читает конфигурацию из переменных окружения и валидирует её.

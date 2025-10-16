@@ -3,11 +3,11 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
+	"sync"
 	"time"
 
 	"github.com/nalonluap/ci-turbo/internal/domain"
@@ -52,22 +52,33 @@ func main() {
 	// 4. Сбор результатов
 	event.DurationMs = duration.Milliseconds()
 	if err != nil {
-		var exitError *exec.ExitError
-		if errors.As(err, &exitError) {
+		if exitError, ok := err.(*exec.ExitError); ok {
 			event.ExitCode = exitError.ExitCode()
+		} else {
+			event.ExitCode = -1 // Не удалось получить код (например, команда не найдена)
 		}
 	} else {
 		event.ExitCode = 0
 	}
 
-	// 5. Асинхронная отправка данных
-	go sendMetrics(event)
+	// 5. Асинхронная отправка данных с ожиданием
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go sendMetrics(event, &wg)
+
+	wg.Wait()
 
 	// 6. Возвращаем оригинальный код завершения
 	os.Exit(event.ExitCode)
 }
 
-func sendMetrics(event domain.Event) {
+// sendMetrics теперь принимает указатель на WaitGroup для синхронизации.
+func sendMetrics(event domain.Event, wg *sync.WaitGroup) {
+	// Эта строка гарантирует, что счетчик WaitGroup уменьшится на 1
+	// перед выходом из функции, даже если произойдет ошибка.
+	defer wg.Done()
+
 	endpoint := os.Getenv("TURBO_OBSERVER_ENDPOINT")
 	token := os.Getenv("TURBO_API_TOKEN")
 	if endpoint == "" || token == "" {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/nalonluap/ci-turbo/internal/domain"
+	"github.com/nalonluap/ci-turbo/services/ingester/internal/config"
 	"github.com/nalonluap/ci-turbo/services/ingester/internal/interfaces"
 )
 
@@ -19,23 +20,24 @@ type Repository struct {
 }
 
 // NewRepository creates and verifies a new connection to ClickHouse.
-func NewRepository(dsn string) (*Repository, error) {
+func NewRepository(cfg config.ClickHouseConfig) (*Repository, error) {
 	db := clickhouse.OpenDB(&clickhouse.Options{
-		Addr: []string{dsn},
-		// Add other connection settings like authentication here if needed
+		Addr: []string{fmt.Sprintf("%s:%s", cfg.Host, cfg.Port)},
+		Auth: clickhouse.Auth{
+			Database: cfg.Database,
+			Username: cfg.User,
+			Password: cfg.Password,
+		},
 	})
 
-	// It's a good practice to ping the database on startup to ensure connectivity.
 	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("failed to connect to ClickHouse: %w", err)
+		return nil, fmt.Errorf("не удалось подключиться к ClickHouse: %w", err)
 	}
-
-	// TODO: Consider running a migration here to create the 'metrics' table if it doesn't exist.
 
 	return &Repository{db: db}, nil
 }
 
-// WriteBatch implements high-performance batch insertion of metrics into ClickHouse.
+// Batch implements high-performance batch insertion of metrics into ClickHouse.
 func (r *Repository) Batch(ctx context.Context, events []*domain.Event) error {
 	// 1. Begin a transaction for atomic writes.
 	tx, err := r.db.Begin()

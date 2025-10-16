@@ -36,7 +36,7 @@ func main() {
 	defer consumer.Close()
 
 	// Репозиторий для записи данных в ClickHouse
-	metricStorage, err := clickhouse.NewRepository(cfg.ClickHouse.DSN)
+	metricStorage, err := clickhouse.NewRepository(cfg.ClickHouse)
 	if err != nil {
 		log.Fatalf("Не удалось подключиться к ClickHouse: %v", err)
 	}

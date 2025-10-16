@@ -8,6 +8,7 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/nalonluap/ci-turbo/internal/domain"
+	"github.com/nalonluap/ci-turbo/services/observer/internal/config"
 	"github.com/nalonluap/ci-turbo/services/observer/internal/interfaces"
 )
 
@@ -20,13 +21,18 @@ type Repository struct {
 }
 
 // NewRepository creates and verifies a new connection to ClickHouse.
-func NewRepository(dsn string) (*Repository, error) {
+func NewRepository(cfg config.ClickHouseConfig) (*Repository, error) {
 	db := clickhouse.OpenDB(&clickhouse.Options{
-		Addr: []string{dsn},
+		Addr: []string{fmt.Sprintf("%s:%s", cfg.Host, cfg.Port)},
+		Auth: clickhouse.Auth{
+			Database: cfg.Database,
+			Username: cfg.User,
+			Password: cfg.Password,
+		},
 	})
 
 	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("failed to connect to ClickHouse: %w", err)
+		return nil, fmt.Errorf("не удалось подключиться к ClickHouse: %w", err)
 	}
 
 	return &Repository{db: db}, nil

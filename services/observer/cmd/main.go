@@ -37,9 +37,9 @@ func main() {
 	log.Println("Connected to NATS broker")
 
 	// Initialize the ClickHouse repository for reading analytics.
-	metricStorage, err := clickhouse.NewRepository(cfg.ClickHouse.DSN)
+	metricStorage, err := clickhouse.NewRepository(cfg.ClickHouse) // Передаем структуру конфига
 	if err != nil {
-		log.Fatalf("Failed to connect to ClickHouse: %v", err)
+		log.Fatalf("Не удалось подключиться к ClickHouse: %v", err)
 	}
 	log.Println("Connected to ClickHouse database")
 
