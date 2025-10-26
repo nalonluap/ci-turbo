@@ -21,5 +21,5 @@ func (s *IngestService) Ingest(ctx context.Context, event *domain.Event) error {
 	// Здесь может быть дополнительная логика: обогащение данных, проверка и т.д.
 
 	// Делегируем отправку нашему брокеру (мы не знаем, Kafka это или что-то еще)
-	return s.broker.Publish(ctx, "metrics-topic", event)
+	return s.broker.Publish(ctx, "metrics.data", event)
 }

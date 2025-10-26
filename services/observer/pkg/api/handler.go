@@ -31,7 +31,13 @@ func (s *Server) handleIngestMetric(c *gin.Context) {
 
 func (s *Server) handleGetSlowestJobs(c *gin.Context) {
 	// TODO: Получить projectID из токена аутентификации или параметра запроса
-	projectID := "some-project-id"
+	projectID := c.Query("projectID")
+
+	// Важно: Добавляем проверку, что projectID был передан
+	if projectID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Query parameter 'projectID' is required"})
+		return
+	}
 
 	// Здесь можно получить период из query-параметров, но пока используем значение по умолчанию
 	results, err := s.queryService.SlowestJobs(c.Request.Context(), projectID, 0)

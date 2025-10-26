@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"time"
 
 	"github.com/nalonluap/ci-turbo/services/observer/internal/interfaces"
 
@@ -23,45 +25,56 @@ type Producer struct {
 
 // NewProducer creates and configures a new NATS producer.
 func NewProducer(natsURL, streamName, subjects string) (*Producer, error) {
-	// Connect to the NATS server
 	nc, err := nats.Connect(natsURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to NATS: %w", err)
 	}
 
-	// Create a JetStream context for guaranteed delivery
 	js, err := nc.JetStream()
 	if err != nil {
 		nc.Close()
 		return nil, fmt.Errorf("failed to create JetStream context: %w", err)
 	}
 
-	// Ensure the stream exists. This is an idempotent operation.
-	_, err = js.AddStream(&nats.StreamConfig{
-		Name:     streamName,
-		Subjects: []string{subjects},
-	})
-	if err != nil && !errors.Is(err, nats.ErrStreamNameAlreadyInUse) {
-		nc.Close()
-		return nil, fmt.Errorf("failed to add NATS stream: %w", err)
+	// Check if the stream exists
+	_, err = js.StreamInfo(streamName)
+	streamConfig := &nats.StreamConfig{
+		Name:      streamName,
+		Subjects:  []string{subjects},
+		Retention: nats.WorkQueuePolicy, // Important: ensures messages are kept until a worker processes them
+	}
+
+	if err != nil {
+		if errors.Is(err, nats.ErrStreamNotFound) {
+			_, err = js.AddStream(streamConfig)
+			if err != nil {
+				nc.Close()
+				return nil, fmt.Errorf("failed to create NATS stream: %w", err)
+			}
+			log.Printf("NATS Stream '%s' created", streamName)
+		} else {
+			nc.Close()
+			return nil, fmt.Errorf("failed to get NATS stream info: %w", err)
+		}
 	}
 
 	return &Producer{js: js, nc: nc}, nil
 }
 
-// Publish serializes a metric event and sends it to the NATS stream.
 func (p *Producer) Publish(ctx context.Context, topic string, event *domain.Event) error {
 	payload, err := json.Marshal(event)
 	if err != nil {
-		return fmt.Errorf("failed to marshal event to JSON: %w", err)
+		return fmt.Errorf("failed to marshal event: %w", err)
 	}
 
-	// Publish the message. JetStream handles the reliability guarantees.
-	_, err = p.js.Publish(topic, payload)
+	// Add a timeout to the publish operation
+	ack, err := p.js.Publish(topic, payload, nats.ExpectStream("METRICS"), nats.AckWait(5*time.Second))
 	if err != nil {
+		log.Printf("failed to publish message to NATS: %v", err)
 		return fmt.Errorf("failed to publish message to NATS: %w", err)
 	}
 
+	log.Printf("Message for JobID: %s published successfully to stream %s", event.JobID, ack.Stream)
 	return nil
 }
 

@@ -30,6 +30,8 @@ func main() {
 
 	// Initialize the NATS message broker producer.
 	messageBroker, err := nats.NewProducer(cfg.NATS.URL, cfg.NATS.StreamName, cfg.NATS.Subject)
+	log.Printf("Subject: %v\n", cfg.NATS.Subject)
+
 	if err != nil {
 		log.Fatalf("Failed to connect to NATS: %v", err)
 	}

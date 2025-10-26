@@ -29,7 +29,7 @@ func main() {
 	// 2. Инициализируем адаптеры (инфраструктурный слой)
 
 	// Консьюмер для чтения сообщений из Kafka
-	consumer, err := nats.NewConsumer(cfg.NATS.URL, cfg.NATS.ConsumerGroup)
+	consumer, err := nats.NewConsumer(cfg.NATS.URL, cfg.NATS.StreamName, cfg.NATS.ConsumerGroup)
 	if err != nil {
 		log.Fatalf("Не удалось создать Kafka consumer: %v", err)
 	}

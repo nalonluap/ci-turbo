@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/nalonluap/ci-turbo/services/ingester/internal/interfaces"
@@ -33,7 +34,7 @@ type Consumer struct {
 }
 
 // NewConsumer creates and configures a new NATS consumer.
-func NewConsumer(natsURL, consumerGroup string) (*Consumer, error) {
+func NewConsumer(natsURL, streamName, consumerGroup string) (*Consumer, error) {
 	nc, err := nats.Connect(natsURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to NATS: %w", err)
@@ -41,46 +42,41 @@ func NewConsumer(natsURL, consumerGroup string) (*Consumer, error) {
 
 	js, err := nc.JetStream()
 	if err != nil {
+		nc.Close()
 		return nil, fmt.Errorf("failed to create JetStream context: %w", err)
 	}
 
-	// Create a durable, pull-based consumer. This allows our worker to control the flow of messages.
-	sub, err := js.PullSubscribe("metrics.*", consumerGroup)
+	// Create a durable, pull-based consumer with an explicit acknowledgement policy.
+	sub, err := js.PullSubscribe("", consumerGroup, nats.BindStream(streamName))
 	if err != nil {
+		nc.Close()
 		return nil, fmt.Errorf("failed to create pull subscription: %w", err)
 	}
 
+	log.Printf("NATS Consumer '%s' is bound to stream '%s'", consumerGroup, streamName)
 	return &Consumer{sub: sub, nc: nc}, nil
 }
 
-// FetchBatch reads a batch of messages from the NATS subscription.
 func (c *Consumer) FetchBatch(ctx context.Context, maxMessages int, timeout time.Duration) ([]interfaces.Message, error) {
-	// Fetch will block until the timeout is reached or the batch is full.
 	msgs, err := c.sub.Fetch(maxMessages, nats.MaxWait(timeout))
 	if err != nil {
-		// nats.ErrTimeout is a normal occurrence when no messages are available.
 		if errors.Is(err, nats.ErrTimeout) {
-			return nil, nil // Return an empty slice, not an error
+			return nil, nil // Not an error, just no messages
 		}
-		return nil, fmt.Errorf("failed to fetch messages from NATS: %w", err)
+		return nil, fmt.Errorf("failed to fetch from NATS: %w", err)
 	}
 
 	messages := make([]interfaces.Message, len(msgs))
 	for i, msg := range msgs {
 		messages[i] = &natsMessage{original: msg}
 	}
-
 	return messages, nil
 }
 
-// CommitMessages acknowledges to NATS that the messages have been processed.
 func (c *Consumer) CommitMessages(ctx context.Context, messages []interfaces.Message) error {
 	for _, msg := range messages {
-		// Acknowledge each message individually.
 		if err := msg.Original().(*nats.Msg).Ack(); err != nil {
-			// In a real scenario, you might want to handle this more gracefully,
-			// perhaps by trying to ack the others.
-			return fmt.Errorf("failed to acknowledge message: %w", err)
+			return fmt.Errorf("failed to ack message: %w", err)
 		}
 	}
 	return nil
